@@ -1,0 +1,22 @@
+{
+  "name": "dependagraph",
+  "version": "0.1.0",
+  "description": "Generate an HTML dependency tree for a Node.js project",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "bin": {
+    "dependagraph": "bin/cli.js"
+  },
+  "keywords": [
+    "dependencies",
+    "visualization",
+    "tree",
+    "html",
+    "npm"
+  ],
+  "author": "",
+  "license": "MIT"
+}
