@@ -4,6 +4,9 @@
   "description": "Generate an HTML dependency tree for a Node.js project",
   "type": "commonjs",
   "main": "src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "bin": {
     "dependagraph": "bin/cli.js"
   },
