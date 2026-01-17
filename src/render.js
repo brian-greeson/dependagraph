@@ -21,7 +21,32 @@ function collectSharedCounts(node, counts = new Map()) {
   return counts;
 }
 
-function renderNode(node, sharedCounts) {
+function collectSharedOwners(node, owners = new Map()) {
+  if (!node) {
+    return owners;
+  }
+
+  const isPackage = node.category && node.category !== 'group' && node.category !== 'root';
+  const parentLabel = isPackage ? nodeKey(node) : null;
+
+  (node.dependencies || []).forEach((child) => {
+    const isChildPackage =
+      child && child.category && child.category !== 'group' && child.category !== 'root';
+
+    if (parentLabel && isChildPackage) {
+      const key = nodeKey(child);
+      const list = owners.get(key) || new Set();
+      list.add(parentLabel);
+      owners.set(key, list);
+    }
+
+    collectSharedOwners(child, owners);
+  });
+
+  return owners;
+}
+
+function renderNode(node, sharedCounts, sharedOwners) {
   const label = node.version ? `${node.name}@${node.version}` : node.name;
   const cssClass = node.category ? `node node--${node.category}` : 'node';
   const children = node.dependencies || [];
@@ -29,14 +54,19 @@ function renderNode(node, sharedCounts) {
     node.category && node.category !== 'group' && node.category !== 'root'
       ? sharedCounts.get(nodeKey(node))
       : 0;
+  const owners = sharedOwners.get(nodeKey(node));
+  const ownerList = owners ? Array.from(owners).sort().join(', ') : '';
+  const sharedTooltip = ownerList ? `Shared by: ${ownerList}` : 'Shared dependency';
   const sharedBadge =
     sharedCount > 1
-      ? `<span class="badge badge--shared">shared x${sharedCount}</span>`
+      ? `<span class="badge badge--shared" data-tooltip="${escapeHtml(
+          sharedTooltip,
+        )}">shared x${sharedCount}</span>`
       : '';
 
   const childMarkup = children.length
     ? `<ul class="node-children">${children
-        .map((child) => renderNode(child, sharedCounts))
+        .map((child) => renderNode(child, sharedCounts, sharedOwners))
         .join('')}</ul>`
     : '';
 
@@ -57,6 +87,7 @@ function renderNode(node, sharedCounts) {
 
 function renderHtml(tree) {
   const sharedCounts = collectSharedCounts(tree);
+  const sharedOwners = collectSharedOwners(tree);
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -65,24 +96,26 @@ function renderHtml(tree) {
     <title>Dependency Graph</title>
     <style>
       body {
-        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-        background: #f2f4f8;
-        color: #1f2328;
+        font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
         margin: 0;
-        padding: 32px;
+        padding: 24px;
       }
 
       h1 {
-        margin: 0 0 16px;
-        font-size: 26px;
+        margin: 0 0 8px;
+        font-size: 20px;
+        letter-spacing: -0.02em;
       }
 
       .legend {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
-        margin-bottom: 24px;
-        font-size: 14px;
+        gap: 10px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        color: #475569;
       }
 
       .legend span {
@@ -101,24 +134,24 @@ function renderHtml(tree) {
       .node-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         position: relative;
       }
 
       .node {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
+        gap: 6px;
+        padding: 6px 10px;
         border-radius: 999px;
         background: #ffffff;
-        border: 1px solid #d0d7de;
-        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-        font-size: 13px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+        font-size: 12px;
         color: inherit;
         cursor: pointer;
         position: relative;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
       }
 
       .node[data-has-children="false"] {
@@ -127,7 +160,7 @@ function renderHtml(tree) {
 
       .node:hover {
         transform: translateY(-1px);
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
       }
 
       .node-label {
@@ -137,8 +170,8 @@ function renderHtml(tree) {
       .node-toggle::before {
         content: "▾";
         display: inline-block;
-        transition: transform 0.15s ease;
-        font-size: 12px;
+        transition: transform 0.2s ease;
+        font-size: 10px;
       }
 
       li.is-collapsed > .node-row .node-toggle::before {
@@ -147,42 +180,43 @@ function renderHtml(tree) {
 
       .node[data-has-children="false"]::before {
         content: "•";
-        font-size: 10px;
+        font-size: 9px;
         color: #94a3b8;
       }
 
       .badge {
-        font-size: 11px;
-        padding: 3px 8px;
+        font-size: 10px;
+        padding: 2px 6px;
         border-radius: 999px;
         background: rgba(15, 23, 42, 0.06);
         color: #475569;
       }
 
       .badge--shared {
-        background: rgba(234, 179, 8, 0.2);
+        background: rgba(234, 179, 8, 0.18);
         color: #92400e;
+        position: relative;
       }
 
       .node--dependency {
-        border-color: #1f6feb;
-        background: linear-gradient(90deg, rgba(31, 111, 235, 0.14), #ffffff);
+        border-color: rgba(30, 64, 175, 0.25);
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.12), #ffffff);
       }
 
       .node--devDependency {
-        border-color: #bf3989;
-        background: linear-gradient(90deg, rgba(191, 57, 137, 0.14), #ffffff);
+        border-color: rgba(190, 24, 93, 0.22);
+        background: linear-gradient(90deg, rgba(244, 114, 182, 0.16), #ffffff);
       }
 
       .node--group {
-        border-color: #6e7781;
-        background: linear-gradient(90deg, rgba(110, 119, 129, 0.18), #ffffff);
+        border-color: #cbd5f5;
+        background: linear-gradient(90deg, rgba(99, 102, 241, 0.14), #ffffff);
         font-weight: 600;
       }
 
       ul {
         list-style: none;
-        margin: 18px 0 18px 36px;
+        margin: 10px 0 10px 20px;
         padding: 0;
         position: relative;
       }
@@ -191,36 +225,61 @@ function renderHtml(tree) {
         content: "";
         position: absolute;
         top: 0;
-        left: -18px;
+        left: -12px;
         width: 2px;
         height: 100%;
-        background: linear-gradient(180deg, rgba(148, 163, 184, 0.6), rgba(148, 163, 184, 0.1));
+        background: linear-gradient(180deg, rgba(148, 163, 184, 0.4), rgba(148, 163, 184, 0.08));
       }
 
       li {
         position: relative;
-        padding-left: 18px;
-        margin-bottom: 14px;
+        padding-left: 12px;
+        margin-bottom: 8px;
       }
 
       li::before {
         content: "";
         position: absolute;
-        top: 18px;
-        left: -18px;
-        width: 18px;
+        top: 14px;
+        left: -12px;
+        width: 12px;
         height: 2px;
-        background: linear-gradient(90deg, rgba(148, 163, 184, 0.6), rgba(148, 163, 184, 0.1));
+        background: linear-gradient(90deg, rgba(148, 163, 184, 0.4), rgba(148, 163, 184, 0.08));
       }
 
       li.is-collapsed > ul {
-        display: none;
+        max-height: 0;
+        opacity: 0;
+        margin: 0 0 0 20px;
+        pointer-events: none;
+      }
+
+      .node-children {
+        max-height: 2000px;
+        opacity: 1;
+        overflow: hidden;
+        transition: max-height 0.25s ease, opacity 0.25s ease, margin 0.25s ease;
+      }
+
+      .badge--shared:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        top: 120%;
+        left: 0;
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 6px 8px;
+        border-radius: 8px;
+        font-size: 11px;
+        white-space: nowrap;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+        z-index: 2;
       }
 
       .instructions {
-        margin: 0 0 20px;
-        color: #475569;
-        font-size: 14px;
+        margin: 0 0 12px;
+        color: #64748b;
+        font-size: 12px;
       }
     </style>
   </head>
@@ -234,7 +293,7 @@ function renderHtml(tree) {
       <span><span class="dot" style="background:#facc15"></span>Shared sub-dependency</span>
     </div>
     <ul>
-      ${renderNode(tree, sharedCounts)}
+      ${renderNode(tree, sharedCounts, sharedOwners)}
     </ul>
     <script>
       document.addEventListener('click', (event) => {
